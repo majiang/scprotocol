@@ -1,0 +1,8 @@
+{
+    "name": "scprotocol",
+    "description": "Simple model for server-client model game",
+    "copyright": "Copyright (c) 2016, Ryuichi OHORI",
+    "license": "Unlicense",
+    "authors": ["Ryuichi OHORI"],
+    "dependencies": {}
+}
