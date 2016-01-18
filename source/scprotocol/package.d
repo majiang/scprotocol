@@ -5,6 +5,85 @@ import std.typecons;
 
 unittest
 {
+    import std.concurrency;
+    auto clientThread = (&clientController).spawn;
+    auto serverThread = (&serverController).spawn;
+    clientThread.send(thisTid);
+    serverThread.send(thisTid);
+    clientThread.send(serverThread);
+    serverThread.send(clientThread);
+    trace(receiveOnly!string);
+    trace(receiveOnly!string);
+}
+
+string toInterThreadString(ServerAction action)
+{
+    if (cast(ServerActionP)action) return "P";
+    if (cast(ServerActionQ)action) return "Q";
+    if (cast(ServerActionR)action) return "R";
+    return "";
+}
+
+string toInterThreadString(ClientAction action)
+{
+    if (cast(ClientActionA)action) return "A";
+    if (cast(ClientActionB)action) return "B";
+    if (cast(ClientActionC)action) return "C";
+    return "";
+}
+
+ClientAction toClientAction(string x)
+{
+    switch (x)
+    {
+        case "A": return new ClientActionImplA;
+        case "B": return new ClientActionImplB;
+        case "C": return new ClientActionImplC;
+        default: return null;
+    }
+}
+
+ServerAction toServerAction(string x)
+{
+    switch (x)
+    {
+        case "P": return new ServerActionImplP;
+        case "Q": return new ServerActionImplQ;
+        case "R": return new ServerActionImplR;
+        default: return null;
+    }
+}
+
+void serverController()
+{
+    import std.concurrency;
+    auto owner = receiveOnly!Tid;
+    auto clientController = receiveOnly!Tid;
+    Server server = new ServerRandom;
+    auto action = server.firstAction;
+    foreach (i; 0..10)
+    {
+        clientController.send(action.toInterThreadString);
+        action = receiveOnly!string.toClientAction.visit(server);
+    }
+    owner.send("Server terminated.");
+}
+
+void clientController()
+{
+    import std.concurrency;
+    auto owner = receiveOnly!Tid;
+    auto serverController = receiveOnly!Tid;
+    Client client = new ClientFollow;
+    foreach (i; 0..10)
+    {
+        serverController.send(receiveOnly!string.toServerAction.visit(client).toInterThreadString);
+    }
+    owner.send("Client terminated.");
+}
+
+unittest
+{
     Client client = new ClientFollow;
     Server server = new ServerRandom;
     ServerAction serverAction = server.firstAction;
@@ -14,6 +93,7 @@ unittest
         serverAction = clientAction.visit(server);
     }
 }
+
 I classselect(alias I, A, B)()
 {
     import std.random;
