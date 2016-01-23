@@ -6,6 +6,71 @@ import std.typecons;
 unittest
 {
     import std.concurrency;
+    auto serverThread = (&serverTailController).spawn("c2s.txt", "s2c.txt", 0);
+    auto clientThread = (&clientTailController).spawn("s2c.txt", "c2s.txt", 0);
+    serverThread.send(thisTid);
+    clientThread.send(thisTid);
+    receiveOnly!string.trace;
+    receiveOnly!string.trace;
+}
+
+void serverTailController(string receive, string send, ulong size)
+{
+    import core.thread, core.time;
+    import std.file, std.stdio, std.string;
+    import std.concurrency : receiveOnly, Tid;
+    Server server = new ServerRandom;
+    auto owner = receiveOnly!Tid;
+    File(send, "w").writeln(server.firstAction.toInterThreadString);
+    size_t counter;
+    while (counter < 10)
+    {
+        Thread.sleep(2.seconds);
+        auto newSize = receive.getSize;
+        tracef("%s: %d -> %d", receive, size, newSize);
+        if (newSize <= size)
+            continue;
+        scope (exit) size = newSize;
+        auto f = File(receive);
+        f.seek(size);
+        foreach (line; f.byLine)
+            File(send, "a").writeln(line.chomp.idup.toClientAction.visit(server).toInterThreadString);
+        counter += 1;
+    }
+    import std.concurrency : send;
+    owner.send("server terminated.");
+}
+
+void clientTailController(string receive, string send, ulong size)
+{
+    import core.thread, core.time;
+    import std.file, std.stdio, std.string;
+    import std.concurrency : receiveOnly, Tid;
+    Client client = new ClientFollow;
+    auto owner = receiveOnly!Tid;
+    Thread.sleep(1.seconds);
+    size_t counter;
+    while (counter < 10)
+    {
+        auto newSize = receive.getSize;
+        tracef("%s: %d -> %d", receive, size, newSize);
+        if (newSize <= size)
+            continue;
+        scope (exit) size = newSize;
+        auto f = File(receive);
+        f.seek(size);
+        foreach (line; f.byLine)
+            File(send, "a").writeln(line.chomp.idup.toServerAction.visit(client).toInterThreadString);
+        counter += 1;
+        Thread.sleep(2.seconds);
+    }
+    import std.concurrency : send;
+    owner.send("client terminated.");
+}
+
+unittest
+{
+    import std.concurrency;
     auto clientThread = (&clientController).spawn;
     auto serverThread = (&serverController).spawn;
     clientThread.send(thisTid);
